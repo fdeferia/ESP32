@@ -1,8 +1,11 @@
+//NoT TESTED//
+
 #include "WiFi.h"
 #include "HTTPClient.h"
 #include "ArduinoJson.h"
 #include <GxEPD2_BW.h>
 #include <Fonts/FreeMonoBold9pt7b.h>
+#include <U8g2_for_Adafruit_GFX.h>
 #include "time.h"
 #include <tinyxml2.h>
 
@@ -12,6 +15,8 @@ using namespace tinyxml2;
 #define DEEP_SLEEP_DURATION 600   // Sleep duration in seconds (10 minutes)
 #define RSS_FETCH_INTERVAL 28      // Fetch RSS every 6 wake-ups (4.6 hour)
 #define CALENDAR_FETCH_INTERVAL 18 // Fetch calendar every 18 wake-ups (3 hours)
+#define WAKEUP_TIME 7  // 7:00 AM
+#define SLEEP_TIME 1  // 1:00 AM
 
 // Persistent variables using RTC memory
 RTC_DATA_ATTR int currentTitleIndex = 0; // Tracks the index of the news title
@@ -22,13 +27,13 @@ RTC_DATA_ATTR char calendarPayload[180] = {0};
 
 
 // WiFi credentials
-#define WIFI_SSID "xxxx.xxx"
-#define WIFI_PASSWORD "xx#xx"
+#define WIFI_SSID "MINDTHESUGAR.ORG"
+#define WIFI_PASSWORD "Francja#32193219"
 
 // OpenWeatherMap API
-#define URL "http://api.openweathermap.org/data/2.5/weather?q=Oxford,UK&APPID=xxx
+#define URL "http://api.openweathermap.org/data/2.5/weather?q=Oxford,UK&APPID=7292bc321dd0ad8d36adf489d5c6e0ff&mode=json&units=metric&cnt=40"
 
-const char* CALENDAR_URL = "https://script.google.com/macros/s/xxxx-xxxx/exec";
+const char* CALENDAR_URL = "https://script.google.com/macros/s/AKfycbwyA-OFerArJLsOC2azIg3rOw80u4KxmP6lkDckQNlStNJBSKR_EnW8lcqi0SxrxKTO0A/exec";
 
 const char* RSS_URL = "https://feeds.bbci.co.uk/news/world/rss.xml";
 
@@ -132,6 +137,38 @@ void DisplayWXicon(int x, int y, String IconName) {
 }
 
 
+void DrawBattery(int x, int y) {
+  uint8_t percentage = 100; // Default percentage
+  float voltage = analogRead(7) / 4096.0 * 7.46; // Convert ADC value to voltage (adjust multiplier as per your voltage divider)
+
+  if (voltage > 1) { // Check for a valid reading
+    Serial.println("Voltage = " + String(voltage, 2) + "V");
+
+    // Calculate battery percentage using the polynomial
+    percentage = 2836.9625 * pow(voltage, 4) - 
+                 43987.4889 * pow(voltage, 3) + 
+                 255233.8134 * pow(voltage, 2) - 
+                 656689.7123 * voltage + 
+                 632041.7303;
+
+    // Clamp percentage to valid range
+    if (voltage >= 4.20) percentage = 100;
+    if (voltage <= 3.50) percentage = 0;
+
+    // Draw battery outline and fill it according to the percentage
+    display.drawRect(x + 15, y - 12, 19, 10, GxEPD_BLACK);
+    display.fillRect(x + 34, y - 10, 2, 5, GxEPD_BLACK);
+    display.fillRect(x + 17, y - 10, 15 * percentage / 100.0, 6, GxEPD_BLACK);
+
+    // Display percentage text
+    String percentbattery = String(percentage) + "%";
+    display.setCursor(x + 65, y - 11);
+    display.print(percentbattery);
+
+  }
+}
+
+
 void displayWeatherAndTime() {
     display.setPartialWindow(0, 0, display.width(), 80); // Top 80px for weather/time
     display.firstPage();
@@ -145,7 +182,7 @@ void displayWeatherAndTime() {
         int hum = doc["main"]["humidity"];
 
         // Display weather icon
-        DisplayWXicon(10, 10, String(iconCode));
+        DisplayWXicon(10, 15, String(iconCode));
 
         // Display weather details
         String newTime = getLocalTimeString();
@@ -153,13 +190,16 @@ void displayWeatherAndTime() {
         String tempLine = String("Temperature: ") + String(temp, 1) + " C";
         String humidityLine = String("Humidity: ") + String(hum) + " %";
 
+      // Display heading section
+        u8g2Fonts.setFont(u8g2_font_helvB08_tf);
+        display.setCursor(4, 0);
+        display.print(newTime);
+        DrawBattery(65, 12);
+        display.drawLine(0, 12, display.width(), 12, GxEPD_BLACK);
+
         int16_t x = 70; // Adjust x position to leave space for the icon
         int16_t y = 20;
         int16_t lineHeight = 20;
-
-        display.setCursor(x, y);
-        display.print(newTime);
-        y += lineHeight;
 
         display.setCursor(x, y);
         display.print(weatherLine);
@@ -312,51 +352,6 @@ void displayNews(int titleIndex) {
     } while (display.nextPage());
 }
 
-
-
-void setup() {
-    Serial.begin(115200);
-    delay(100);           // Allow some time for the connection to stabilize
-    Serial.println("Starting setup...");
-    display.init(115200, true, 50, false); // Initialize display
-    wifi_init(); // Initialize Wi-Fi
-
-    if (wakeUpCount == 0 || wakeUpCount % RSS_FETCH_INTERVAL == 0) {
-        fetchLatestNews(); // Fetch RSS feed on first boot or every 1 hour
-    }
-
-    if (newsCount > 0) {
-        displayNews(currentTitleIndex); // Display the current news title
-        currentTitleIndex = (currentTitleIndex + 1) % newsCount; // Cycle to the next title
-    } else {
-        displayNews(-1); // Display "No news available"
-    }
-
- // Handle Calendar
-    if (wakeUpCount == 0 || wakeUpCount % CALENDAR_FETCH_INTERVAL == 0) {
-        fetchAndDisplayCalendar(); // Fetch and display calendar every 3 hours
-    } else {
-        displaySavedCalendar(); // Display previously fetched calendar
-    }
-
-    // Display weather and calendar
-    downloadWeather();
-  
-    displayWeatherAndTime();
-
-    // Prepare for deep sleep
-    wakeUpCount++;
-    esp_sleep_enable_timer_wakeup(DEEP_SLEEP_DURATION * uS_TO_S_FACTOR); // Configure sleep time
-    Serial.println("Going to deep sleep...");
-    display.hibernate(); // Hibernate the display for battery saving
-    esp_deep_sleep_start();
-}
-
-void loop() {
-
-}
-
-
 // Define each of the *icons for display
 const unsigned char sunny[] PROGMEM = { // 56x48
 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xf3, 0xff, 0xff, 0xff, 
@@ -483,3 +478,69 @@ const unsigned char nodata[] PROGMEM = { // 56x48
 0xff, 0xff, 0xff, 0xc1, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc1, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc1, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
+void setup() {
+    Serial.begin(115200);
+    delay(100);           // Allow some time for the connection to stabilize
+    Serial.println("Starting setup...");
+    display.init(115200, true, 50, false); // Initialize display
+    wifi_init(); // Initialize Wi-Fi
+  // Check current time
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) {
+        Serial.println("Failed to obtain time. Going to sleep for default duration.");
+        ESP.deepSleep(DEEP_SLEEP_DURATION * uS_TO_S_FACTOR);
+        return;
+    }
+
+    int currentHour = timeinfo.tm_hour;
+    Serial.printf("Current Hour: %d\n", currentHour);
+
+    // Restrict operation based on time
+    if (currentHour < WAKEUP_TIME && currentHour >= SLEEP_TIME) {
+        // Calculate sleep duration until WAKEUP_TIME
+        int sleepHours = WAKEUP_TIME - currentHour;
+        unsigned long long extendedSleep = sleepHours * 3600 * uS_TO_S_FACTOR;
+        Serial.printf("Outside operational hours. Sleeping for %d hours.\n", sleepHours);
+        ESP.deepSleep(extendedSleep);
+        return;
+    }
+
+    // Proceed with normal operation
+    Serial.println("Within operational hours. Proceeding with tasks...");
+    
+    if (wakeUpCount == 0 || wakeUpCount % RSS_FETCH_INTERVAL == 0) {
+        fetchLatestNews(); // Fetch RSS feed on first boot or every 1 hour
+    }
+
+    if (newsCount > 0) {
+        displayNews(currentTitleIndex); // Display the current news title
+        currentTitleIndex = (currentTitleIndex + 1) % newsCount; // Cycle to the next title
+    } else {
+        displayNews(-1); // Display "No news available"
+    }
+
+ // Handle Calendar
+    if (wakeUpCount == 0 || wakeUpCount % CALENDAR_FETCH_INTERVAL == 0) {
+        fetchAndDisplayCalendar(); // Fetch and display calendar every 3 hours
+    } else {
+        displaySavedCalendar(); // Display previously fetched calendar
+    }
+
+    // Display weather and calendar
+    downloadWeather();
+  
+    displayWeatherAndTime();
+
+    // Prepare for deep sleep
+    wakeUpCount++;
+    esp_sleep_enable_timer_wakeup(DEEP_SLEEP_DURATION * uS_TO_S_FACTOR); // Configure sleep time
+    Serial.println("Going to deep sleep...");
+    display.hibernate(); // Hibernate the display for battery saving
+    esp_deep_sleep_start();
+}
+
+void loop() {
+
+}
+
