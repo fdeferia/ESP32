@@ -27,13 +27,13 @@ RTC_DATA_ATTR char calendarPayload[180] = {0};
 
 
 // WiFi credentials
-#define WIFI_SSID "MINDTHESUGAR.ORG"
-#define WIFI_PASSWORD "Francja#32193219"
+#define WIFI_SSID "xxx.ORG"
+#define WIFI_PASSWORD "xxx#xxxx"
 
 // OpenWeatherMap API
-#define URL "http://api.openweathermap.org/data/2.5/weather?q=Oxford,UK&APPID=7292bc321dd0ad8d36adf489d5c6e0ff&mode=json&units=metric&cnt=40"
+#define URL "http://api.openweathermap.org/data/2.5/weather?q=Oxford,UK&APPID=xxx&mode=json&units=metric&cnt=40"
 
-const char* CALENDAR_URL = "https://script.google.com/macros/s/AKfycbwyA-OFerArJLsOC2azIg3rOw80u4KxmP6lkDckQNlStNJBSKR_EnW8lcqi0SxrxKTO0A/exec";
+const char* CALENDAR_URL = "https://script.google.com/macros/s/xxxx-xxxx/exec";
 
 const char* RSS_URL = "https://feeds.bbci.co.uk/news/world/rss.xml";
 
