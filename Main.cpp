@@ -1,4 +1,4 @@
-// Creating using Chatgpt and some code for weather from this amazing project: https://github.com/G6EJD/ESP32-e-Paper-Weather-Display//
+// Creating using AI and some code for weather from this amazing project: https://github.com/G6EJD/ESP32-e-Paper-Weather-Display//
 
 
 #include "WiFi.h"
