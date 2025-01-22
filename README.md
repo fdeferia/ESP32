@@ -13,7 +13,7 @@ RTC Memory: Stores the array of headlines and calendar event in the RTC memory, 
 
 ## Power Management
 The ESP32-S3 SuperMini is powered by a Li-Po battery. The dev board contains an integrated LTH7R charging IC to manage the battery.  
-To monitor the battery level, a voltage divider circuit is used. The divider consists of 330k resistors and is connected to GPIO7. This setup ensures safe voltage measurements with the minimun battery drain. 
+To monitor the battery level, a voltage divider circuit is used. The divider consists of 220k resistors and is connected to GPIO7. This setup ensures safe voltage measurements with the minimun battery drain. 
 There is and on/off switch to disconnect the battery when required.
 ![screenshot](VoltageDivider.jpg)
 
@@ -36,7 +36,7 @@ Deep sleep mode significantly reduces power consumption, making this project sui
 ESP32-S3 SuperMini board  
 Compatible e-paper display (I am using WeAct 4.2 Inch Epaper Module)  
 Battery (e.g., 5000mAh for extended operation)  
-Voltage divider circuit with max 330k resistors (optional, for battery monitoring)  
+Voltage divider circuit with max 220k resistors (optional, for battery monitoring)  
 
 **Software:**
 Arduino IDE or PlatformIO for programming the ESP32
